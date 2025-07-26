@@ -1,5 +1,6 @@
 import postgres from 'postgres';
 import {
+  Count,
   CustomerField,
   CustomersTableType,
   InvoiceForm,
@@ -9,19 +10,19 @@ import {
 } from './definitions';
 import { formatCurrency } from './utils';
 
-const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
+const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'prefer' });
 
 export async function fetchRevenue() {
   try {
     // Artificially delay a response for demo purposes.
     // Don't do this in production :)
 
-    // console.log('Fetching revenue data...');
-    // await new Promise((resolve) => setTimeout(resolve, 3000));
+    console.log('Fetching revenue data...');
+    await new Promise((resolve) => setTimeout(resolve, 3000));
 
     const data = await sql<Revenue[]>`SELECT * FROM revenue`;
 
-    // console.log('Data fetch completed after 3 seconds.');
+    console.log('Data fetch completed after 3 seconds.');
 
     return data;
   } catch (error) {
@@ -115,6 +116,44 @@ export async function fetchFilteredInvoices(
     `;
 
     return invoices;
+  } catch (error) {
+    console.error('Database Error:', error);
+    throw new Error('Failed to fetch invoices.');
+  }
+}
+
+export async function fetchCustomersCount() {
+  try {
+    const customersCount = await sql<Count[]>`
+      SELECT COUNT(*) as count FROM customers
+    `;
+
+    return customersCount[0]?.count ?? 0;
+  } catch (error) {
+    console.error('Database Error:', error);
+    throw new Error('Failed to fetch customers count.');
+  }
+}
+
+export async function fetchFilteredInvoicesCount(
+    query: string
+) {
+
+  try {
+    const invoicesCount = await sql<Count[]>`
+      SELECT
+        count(invoices.*) as count
+      FROM invoices
+      JOIN customers ON invoices.customer_id = customers.id
+      WHERE
+        customers.name ILIKE ${`%${query}%`} OR
+        customers.email ILIKE ${`%${query}%`} OR
+        invoices.amount::text ILIKE ${`%${query}%`} OR
+        invoices.date::text ILIKE ${`%${query}%`} OR
+        invoices.status ILIKE ${`%${query}%`}
+    `;
+
+    return invoicesCount[0]?.count ?? 0;
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error('Failed to fetch invoices.');
